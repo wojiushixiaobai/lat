@@ -1,8 +1,33 @@
-name: Release
+### Auto build LAT binary with Github Action
+name: Build LAT
 
 on:
   workflow_dispatch:
-  release:
+  push:
+    paths:
+      - "**/*.c"
+      - "**/*.h"
+      - "**/*.S"
+      - "**/*.py"
+      - "**/meson.build"
+      - "meson.options"
+      - "**/*.inc"
+      - "**/*.yml"
+      - "runtime/**"
+      - "tests/runtime/**"
+  pull_request:
+    types: [assigned, opened, synchronize, reopened]
+    paths:
+      - "**/*.c"
+      - "**/*.h"
+      - "**/*.S"
+      - "**/*.py"
+      - "**/meson.build"
+      - "meson.options"
+      - "**/*.inc"
+      - "**/*.yml"
+      - "runtime/**"
+      - "tests/runtime/**"
 
 jobs:
   build:
@@ -11,9 +36,16 @@ jobs:
       fail-fast: false
       matrix:
         container:
+          - { NAME: 'latx-runner-aosc', ARCH_NAME: 'loong64' }
+          - { NAME: 'latx-runner-debian', ARCH_NAME: 'loong64' }
           - { NAME: 'latx-runner-anolis', ARCH_NAME: 'loongarch64' }
+          - { NAME: 'latx-runner-fedora', ARCH_NAME: 'loongarch64' }
         type:
           - { NAME: 'build-release', OPT: '' }
+          - { NAME: 'build32', OPT: '-c -a' }
+          - { NAME: 'build32-dbg', OPT: '-c' }
+          - { NAME: 'build64', OPT: '-c -a' }
+          - { NAME: 'build64-dbg', OPT: '-c' }
 
     steps:
       - uses: actions/checkout@v7
@@ -55,5 +87,8 @@ jobs:
         with:
           name: ${{ matrix.container.NAME }}-${{ matrix.type.NAME }}-${{ env.SHORT_COMMIT }}
           path: |
+            ${{ matrix.type.NAME }}/latx-i386
+            ${{ matrix.type.NAME }}/latx-x86_64
             *.tar.xz
           retention-days: 7
+
