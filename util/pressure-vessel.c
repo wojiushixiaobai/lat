@@ -324,9 +324,13 @@ bool latx_pressure_vessel_runtime_is_wrapper(const char *program)
 {
     g_autofree char *resolved = NULL;
     g_autofree char *wrapper_dir = NULL;
+    g_autofree char *bin_dir = NULL;
+    g_autofree char *runtime_dir = NULL;
+    g_autofree char *candidate_base = NULL;
+    g_autofree char *candidate_files = NULL;
     const char *basename;
 
-    if (!runtime_base || !program) {
+    if (!program) {
         return false;
     }
     basename = strrchr(program, '/');
@@ -338,6 +342,30 @@ bool latx_pressure_vessel_runtime_is_wrapper(const char *program)
     resolved = pressure_vessel_canonical_path(program);
     if (!resolved) {
         return false;
+    }
+
+    /*
+     * pressure-vessel-wrap is re-execed after its initial environment has
+     * been reduced.  In that invocation there can be no Runtime variables or
+     * library path from which runtime_configure() can rediscover the base.
+     * Derive it from the canonical wrapper path, but only after validating the
+     * adjacent Runtime files directory.
+     */
+    if (!runtime_base) {
+        bin_dir = g_path_get_dirname(resolved);
+        runtime_dir = g_path_get_dirname(bin_dir);
+        candidate_base = g_path_get_dirname(runtime_dir);
+        candidate_files = g_build_filename(candidate_base, "files", NULL);
+        if (!pressure_vessel_runtime_files_are_valid(candidate_files)) {
+            return false;
+        }
+        runtime_base = pressure_vessel_canonical_path(candidate_base);
+        runtime_files = pressure_vessel_canonical_path(candidate_files);
+        if (!runtime_base || !runtime_files) {
+            g_clear_pointer(&runtime_base, g_free);
+            g_clear_pointer(&runtime_files, g_free);
+            return false;
+        }
     }
     wrapper_dir = g_build_filename(runtime_base, "pressure-vessel", NULL);
     return pressure_vessel_path_is_within(wrapper_dir, resolved);
@@ -498,17 +526,17 @@ char *latx_pressure_vessel_runtime_resolve_path(const char *name)
         const char *prefix_dri_dir;
     } libraries[] = {
         { "/lib/x86_64-linux-gnu/", runtime_x86_64_dirs,
-          G_N_ELEMENTS(runtime_x86_64_dirs), "/usr/lib",
-          "/usr/lib/xorg/modules/dri" },
+          G_N_ELEMENTS(runtime_x86_64_dirs), "/usr/lib/x86_64-linux-gnu",
+          "/usr/lib/x86_64-linux-gnu/dri" },
         { "/usr/lib/x86_64-linux-gnu/", runtime_x86_64_dirs,
-          G_N_ELEMENTS(runtime_x86_64_dirs), "/usr/lib",
-          "/usr/lib/xorg/modules/dri" },
+          G_N_ELEMENTS(runtime_x86_64_dirs), "/usr/lib/x86_64-linux-gnu",
+          "/usr/lib/x86_64-linux-gnu/dri" },
         { "/lib/i386-linux-gnu/", runtime_i386_dirs,
-          G_N_ELEMENTS(runtime_i386_dirs), "/usr/lib",
-          "/usr/lib/xorg/modules/dri" },
+          G_N_ELEMENTS(runtime_i386_dirs), "/usr/lib/i386-linux-gnu",
+          "/usr/lib/i386-linux-gnu/dri" },
         { "/usr/lib/i386-linux-gnu/", runtime_i386_dirs,
-          G_N_ELEMENTS(runtime_i386_dirs), "/usr/lib",
-          "/usr/lib/xorg/modules/dri" },
+          G_N_ELEMENTS(runtime_i386_dirs), "/usr/lib/i386-linux-gnu",
+          "/usr/lib/i386-linux-gnu/dri" },
     };
     size_t i;
 
@@ -553,17 +581,26 @@ char *latx_pressure_vessel_runtime_resolve_path(const char *name)
         if (!pressure_vessel_relative_path_is_safe(relative)) {
             return NULL;
         }
+        /*
+         * A Runtime can provide Mesa's loader libraries without providing a
+         * matching DRI directory.  Those loaders cannot select a host GPU on
+         * LATX.  Prefer the guest Mesa bridge (libdril) in that case, rather
+         * than falling back to it only after the Runtime library is absent.
+         */
+        if (!strchr(relative, '/')) {
+            file = pressure_vessel_prefix_graphics_library(
+                libraries[i].runtime_dirs, libraries[i].runtime_dir_count,
+                libraries[i].prefix_library_dir, libraries[i].prefix_dri_dir,
+                relative);
+            if (file) {
+                return file;
+            }
+        }
         file = pressure_vessel_runtime_library_file(
             libraries[i].runtime_dirs, libraries[i].runtime_dir_count,
             relative);
         if (file) {
             return file;
-        }
-        if (!strchr(relative, '/')) {
-            return pressure_vessel_prefix_graphics_library(
-                libraries[i].runtime_dirs, libraries[i].runtime_dir_count,
-                libraries[i].prefix_library_dir, libraries[i].prefix_dri_dir,
-                relative);
         }
         return NULL;
     }
