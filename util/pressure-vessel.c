@@ -324,13 +324,9 @@ bool latx_pressure_vessel_runtime_is_wrapper(const char *program)
 {
     g_autofree char *resolved = NULL;
     g_autofree char *wrapper_dir = NULL;
-    g_autofree char *bin_dir = NULL;
-    g_autofree char *runtime_dir = NULL;
-    g_autofree char *candidate_base = NULL;
-    g_autofree char *candidate_files = NULL;
     const char *basename;
 
-    if (!program) {
+    if (!runtime_base || !program) {
         return false;
     }
     basename = strrchr(program, '/');
@@ -342,30 +338,6 @@ bool latx_pressure_vessel_runtime_is_wrapper(const char *program)
     resolved = pressure_vessel_canonical_path(program);
     if (!resolved) {
         return false;
-    }
-
-    /*
-     * pressure-vessel-wrap is re-execed after its initial environment has
-     * been reduced.  In that invocation there can be no Runtime variables or
-     * library path from which runtime_configure() can rediscover the base.
-     * Derive it from the canonical wrapper path, but only after validating the
-     * adjacent Runtime files directory.
-     */
-    if (!runtime_base) {
-        bin_dir = g_path_get_dirname(resolved);
-        runtime_dir = g_path_get_dirname(bin_dir);
-        candidate_base = g_path_get_dirname(runtime_dir);
-        candidate_files = g_build_filename(candidate_base, "files", NULL);
-        if (!pressure_vessel_runtime_files_are_valid(candidate_files)) {
-            return false;
-        }
-        runtime_base = pressure_vessel_canonical_path(candidate_base);
-        runtime_files = pressure_vessel_canonical_path(candidate_files);
-        if (!runtime_base || !runtime_files) {
-            g_clear_pointer(&runtime_base, g_free);
-            g_clear_pointer(&runtime_files, g_free);
-            return false;
-        }
     }
     wrapper_dir = g_build_filename(runtime_base, "pressure-vessel", NULL);
     return pressure_vessel_path_is_within(wrapper_dir, resolved);

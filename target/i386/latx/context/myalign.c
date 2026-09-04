@@ -1778,14 +1778,8 @@ static void LoadEnvVars(box64context_t *context)
     AppendList(&context->box64_ld_lib, "/lib64:/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/x86_64-linux-gnu/lib", 1);
 #endif
 
-    if(getenv("LD_LIBRARY_PATH") && !getenv("LATX_LD_LIBRARY_PATH"))
+    if(getenv("LD_LIBRARY_PATH"))
         PrependList(&context->box64_ld_lib, getenv("LD_LIBRARY_PATH"), 1);   // in case some of the path are for x86 world
-
-    // This is intentionally LATX-specific: host shell scripts must not see
-    // their guest library paths before they exec a guest ELF.  It also
-    // replaces, rather than supplements, the script's inherited loader path.
-    if(getenv("LATX_LD_LIBRARY_PATH"))
-        PrependList(&context->box64_ld_lib, getenv("LATX_LD_LIBRARY_PATH"), 1);
 
     // check BOX64_PATH and load it
     LoadEnvPath(&context->box64_path, ".:bin", "BOX64_PATH");

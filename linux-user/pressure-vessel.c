@@ -105,36 +105,6 @@ static void latx_pressure_vessel_apply_runtime_paths(
     (void)envlist_setenv(envlist, assignment);
 }
 
-static void latx_pressure_vessel_set_webhelper_library_path(
-    envlist_t *envlist, const char *app_library_path)
-{
-    static const char guest_directory[] = "/lib/x86_64-linux-gnu";
-    g_autofree char *directory = path_get_prefixed(guest_directory);
-    g_autofree char *library_path = NULL;
-    g_autofree char *assignment = NULL;
-
-    library_path = latx_pressure_vessel_runtime_make_library_path(
-        app_library_path);
-    if (!library_path) {
-        return;
-    }
-
-    /*
-     * The payload is a host shell script.  Do not put guest libraries in
-     * LD_LIBRARY_PATH: the host loader consumes that variable before the
-     * script execs the guest ELF.  LATX_LD_LIBRARY_PATH is ignored by the
-     * host and consumed only when binfmt starts LATX for that final ELF.
-     */
-    if (g_file_test(directory, G_FILE_TEST_IS_DIR)) {
-        assignment = g_strdup_printf("LATX_LD_LIBRARY_PATH=%s:%s",
-                                     directory, library_path);
-    } else {
-        assignment = g_strdup_printf("LATX_LD_LIBRARY_PATH=%s",
-                                     library_path);
-    }
-    (void)envlist_setenv(envlist, assignment);
-}
-
 static char **latx_pressure_vessel_direct_payload(const char *program,
                                                    char **target_argv,
                                                    envlist_t *envlist)
@@ -234,8 +204,7 @@ static char **latx_pressure_vessel_direct_payload(const char *program,
     /* Runtime entry points can be host scripts as well as guest ELFs. */
     steam_webhelper = latx_pressure_vessel_webhelper(payload[0]);
 
-    /* --env-if-host applies to the webhelper script run directly on host. */
-    if (steam_webhelper) {
+    if (!steam_webhelper) {
         for (size_t i = 0; i < environment->len; i++) {
             (void)envlist_setenv(envlist, g_ptr_array_index(environment, i));
         }
@@ -244,20 +213,12 @@ static char **latx_pressure_vessel_direct_payload(const char *program,
                 "LD_PRELOAD=%s", host_ld_preload);
 
             (void)envlist_setenv(envlist, assignment);
-        }
-    } else {
-        if (preloads && preloads->len) {
+        } else if (preloads && preloads->len) {
             g_autofree char *assignment = g_strdup_printf(
                 "LD_PRELOAD=%s", preloads->str);
 
             (void)envlist_setenv(envlist, assignment);
         }
-    }
-
-    if (steam_webhelper) {
-        latx_pressure_vessel_set_webhelper_library_path(envlist,
-                                                         app_library_path);
-    } else {
         latx_pressure_vessel_apply_runtime_paths(envlist, app_library_path,
                                                  old_xdg_data_dirs);
     }
@@ -463,22 +424,6 @@ void latx_pressure_vessel_prepare(const char *program, char **target_argv,
     bool wrapper_name;
 
     pressure_vessel_payload = NULL;
-
-#if defined(TARGET_X86_64)
-    {
-        const char *library_path = envlist_getenv(envlist,
-                                                   "LATX_LD_LIBRARY_PATH");
-
-        /* This point is reached only after binfmt has selected LATX for an
-         * ELF; the host shell that carried the value has already execed. */
-        if (library_path && library_path[0]) {
-            g_autofree char *assignment = g_strdup_printf(
-                "LD_LIBRARY_PATH=%s", library_path);
-
-            (void)envlist_setenv(envlist, assignment);
-        }
-    }
-#endif
 
     expected_files = envlist_getenv(envlist,
                                     LATX_PRESSURE_VESSEL_RUNTIME_FILES_ENV);
