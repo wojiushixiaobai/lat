@@ -13,8 +13,7 @@ linux_user_ss.add(files(
   'syscall.c',
   'uaccess.c',
   'uname.c',
-  'vm86.c',
-  'pressure-vessel.c'
+  'vm86.c'
 ))
 linux_user_ss.add(rt)
 
