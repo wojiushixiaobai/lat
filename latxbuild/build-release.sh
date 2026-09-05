@@ -47,16 +47,17 @@ build() {
         --disable-vhost-net
         --disable-vhost-user
         --disable-vnc
-        --enable-latx
-        --enable-guest-base-zero
         --disable-debug-info
-        --optimize-O1
-        --extra-ldflags=-ldl
         --disable-blobs
         --disable-docs
         --disable-werror
         --disable-pie
         --disable-linux-io-uring
+        --enable-latx
+        --enable-guest-base-zero
+        --optimize-O1
+        --extra-ldflags="-ldl -lzstd -Wl,-z,norelro -Wl,--allow-multiple-definition"
+        --static
     )
 
     local _configure64_flags=(
@@ -66,10 +67,13 @@ build() {
         --disable-docs
         --disable-linux-io-uring
         --disable-werror
+        --disable-pie
+        --disable-linux-io-uring
         --enable-kzt
         --enable-latx
-        --extra-ldflags=-ldl
         --optimize-O1
+        --extra-ldflags="-ldl -lzstd -Wl,-z,norelro -Wl,--allow-multiple-definition"
+        --static
     )
 
     pushd $srcdir/build32 >/dev/null
@@ -90,10 +94,10 @@ package() {
     install -Dm755 -s $srcdir/build64/runtime/latu-runtime-manager \
         $pkgdir/$pkgname-$pkgver/usr/bin/latu-runtime-manager
     cat >$pkgdir/$pkgname-$pkgver/usr/lib/binfmt.d/latx-i386.conf <<EOF
-:latx-i386:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\x00\x00\xf4\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/latx-i386:
+:latx-i386:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\x00\x00\xf4\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/latx-i386:FO
 EOF
     cat >${pkgdir}/${pkgname}-${pkgver}/usr/lib/binfmt.d/latx-x86_64.conf <<EOF
-:latx-x86_64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\x00\x00\xf4\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/latx-x86_64:
+:latx-x86_64:M::\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\x00\x00\xf4\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/latx-x86_64:FO
 EOF
     echo "vm.mmap_min_addr = 65536" >${pkgdir}/$pkgname-$pkgver/usr/lib/sysctl.d/mmap_min_addr.conf
     (
