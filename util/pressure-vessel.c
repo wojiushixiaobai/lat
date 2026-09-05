@@ -195,8 +195,7 @@ static char *pressure_vessel_runtime_base_from_files(const char *files)
     return pressure_vessel_canonical_path(base);
 }
 
-bool latx_pressure_vessel_runtime_configure(const envlist_t *envlist,
-                                            const char *expected_files)
+void latx_pressure_vessel_runtime_configure(const envlist_t *envlist)
 {
     const char *base;
     const char *runtime;
@@ -208,7 +207,7 @@ bool latx_pressure_vessel_runtime_configure(const envlist_t *envlist,
     runtime_library_path_active = false;
 
     if (!envlist) {
-        return false;
+        return;
     }
 
     runtime_library_path = g_strdup(envlist_getenv(envlist,
@@ -231,8 +230,15 @@ bool latx_pressure_vessel_runtime_configure(const envlist_t *envlist,
     }
     runtime_library_path_active = pressure_vessel_runtime_path_is_active(
         runtime_files, runtime_library_path);
-    runtime_active = runtime_files && expected_files &&
-                     !strcmp(runtime_files, expected_files);
+}
+
+void latx_pressure_vessel_runtime_activate(void)
+{
+    runtime_active = runtime_files != NULL;
+}
+
+bool latx_pressure_vessel_runtime_is_active(void)
+{
     return runtime_active;
 }
 
